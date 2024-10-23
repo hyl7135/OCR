@@ -1,0 +1,391 @@
+"""
+SynthTIGER
+Copyright (c) 2021-present NAVER Corp.
+MIT license
+"""
+
+import os
+
+import cv2
+import numpy as np
+from PIL import Image
+
+from synthtiger import components, layers, templates, utils
+
+import synthtiger.unicode
+
+ja2label = {'ㄱ':0, 'ㄲ':1, 'ㄴ':2, 'ㄷ':3, 'ㄸ':4, 'ㄹ':5, 'ㅁ':6, 'ㅂ':7, 'ㅃ':8,
+'ㅅ':9, 'ㅆ':10, 'ㅇ':11,  'ㅈ':12, 'ㅉ':13, 'ㅊ':14, 'ㅋ':15, 'ㅌ':16,  'ㅍ':17, 'ㅎ':18,
+'0':19, '1':20, '2':21, '3':22, '4':23, '5':24, '6':25, '7':26, '8':27, '9':28, '-':29}
+
+mo2label = {'ㅏ':0, 'ㅐ':1, 'ㅑ':2, 'ㅒ':3, 'ㅓ':4, 'ㅔ':5, 'ㅕ':6, 'ㅖ':7, 'ㅗ':8, 'ㅘ':9, 
+'ㅙ':10, 'ㅚ':11, 'ㅛ':12, 'ㅜ':13, 'ㅝ':14, 'ㅞ':15, 'ㅟ':16, 'ㅠ':17, 'ㅡ':18, 'ㅢ':19, 'ㅣ':20, None:21}
+
+ba2label = {None:0, 'ㄱ':1, 'ㄲ':2, 'ㄳ':3, 'ㄴ':4, 'ㄵ':5, 'ㄶ':6, 'ㄷ':7, 'ㄹ':8, 'ㄺ':9,
+'ㄻ':10, 'ㄼ':11, 'ㄽ':12, 'ㄾ':13, 'ㄿ':14, 'ㅀ':15, 'ㅁ':16, 'ㅂ':17, 'ㅄ':18, 'ㅅ':19,
+'ㅆ':20, 'ㅇ':21, 'ㅈ':22, 'ㅊ':23, 'ㅋ':24, 'ㅌ':25, 'ㅍ':26, 'ㅎ':27}
+
+label2ja = {0: 'ㄱ', 1: 'ㄲ', 2: 'ㄴ', 3: 'ㄷ', 4: 'ㄸ', 5: 'ㄹ',
+            6: 'ㅁ', 7: 'ㅂ', 8: 'ㅃ', 9: 'ㅅ', 10: 'ㅆ', 11: 'ㅇ',
+            12: 'ㅈ', 13: 'ㅉ', 14: 'ㅊ', 15: 'ㅋ', 16: 'ㅌ', 17: 'ㅍ', 18: 'ㅎ',
+            19: '0', 20:'1', 21:'2', 22:'3', 23:'4', 24:'5', 25:'6', 26:'7', 27:'8', 28:'9', 29:'-'}
+
+label2mo = {0: 'ㅏ', 1: 'ㅐ', 2: 'ㅑ', 3: 'ㅒ', 4: 'ㅓ', 5: 'ㅔ',
+            6: 'ㅕ', 7: 'ㅖ', 8: 'ㅗ', 9: 'ㅘ', 10: 'ㅙ', 11: 'ㅚ',
+            12: 'ㅛ', 13: 'ㅜ', 14: 'ㅝ', 15: 'ㅞ', 16: 'ㅟ', 17: 'ㅠ',
+            18: 'ㅡ', 19: 'ㅢ', 20: 'ㅣ', 21:None}
+
+label2ba = {0: None, 1: 'ㄱ', 2: 'ㄲ', 3: 'ㄳ', 4: 'ㄴ', 5: 'ㄵ',
+            6: 'ㄶ', 7: 'ㄷ', 8: 'ㄹ', 9: 'ㄺ', 10: 'ㄻ', 11: 'ㄼ',
+            12: 'ㄽ', 13: 'ㄾ', 14: 'ㄿ', 15: 'ㅀ', 16: 'ㅁ', 17: 'ㅂ',
+            18: 'ㅄ', 19: 'ㅅ', 20: 'ㅆ', 21: 'ㅇ', 22: 'ㅈ', 23: 'ㅊ',
+            24: 'ㅋ', 25: 'ㅌ', 26: 'ㅍ', 27: 'ㅎ'}
+
+ASC2label = {'0' : 0, '1': 1, '2' : 2, '3' : 3, '4' : 4, '5' : 5, '6' : 6, '7' : 7, '8' : 8, '9' : 9,
+             'A' : 10, 'B': 11, 'C' : 12, 'D' : 13, 'E' : 14, 'F' : 15, 'G' : 16, 'H' : 17, 'I' : 18, 'J' : 19, 'K' : 20, 'L' : 21, 'M' : 22,
+             'N' : 23, 'O': 24, 'P' : 25, 'Q' : 26, 'R' : 27, 'S' : 28, 'T' : 29, 'U' : 30, 'V' : 31, 'W' : 32, 'X' : 33, 'Y' : 34, 'Z' : 35,
+             'a' : 36, 'b': 37, 'c' : 38, 'd' : 39, 'e' : 40, 'f' : 41, 'g' : 42, 'h' : 43, 'i' : 44, 'j' : 45, 'k' : 46, 'l' : 47, 'm' : 48,
+             'n' : 49, 'o': 50, 'p' : 51, 'q' : 52, 'r' : 53, 's' : 54, 't' : 55, 'u' : 56, 'v' : 57, 'w' : 58, 'x' : 59, 'y' : 60, 'z' : 61,
+             ':' : 62, '#': 63, '@' : 64, '(' : 65, ')' : 66, '-' : 67}
+
+label2ASC = {0 : '0', 1 : '1', 2 : '2', 3 : '3', 4 : '4', 5 : '5', 6 : '6', 7 : '7', 8 : '8', 9 : '9',
+             10 : 'A', 11 : 'B', 12 : 'C', 13 : 'D', 14 : 'E', 15 : 'F', 16 : 'G', 17 : 'H', 18 : 'I', 19 : 'J', 20 : 'K', 21: 'L', 22 :'M'
+             , 23 : 'N', 24 : 'O', 25 : 'P', 26 : 'Q', 27 : 'R', 28 : 'S', 29 : 'T', 30 :'U', 31: 'V', 32 : 'W', 33 : 'X', 34 : 'Y', 35 : 'Z'
+             , 36 : 'a', 37 : 'b', 38 : 'c', 39 : 'd', 40 : 'e', 41 : 'f', 42 : 'g', 43 : 'h', 44 : 'i', 45 : 'j', 46 : 'k', 47 : 'l', 48 : 'm'
+             , 49 : 'n', 50 : 'o', 51 : 'p', 52 : 'q', 53 : 'r', 54 : 's', 55 : 't', 56 : 'u', 57 : 'v', 58 : 'w', 59 : 'x', 60 : 'y', 61 : 'z'
+             , 62 : ':', 63 : '#', 64 : '@', 65 : '(', 66 : ')', 67 : '-'
+             }
+
+BLEND_MODES = [
+    "normal",
+    "multiply",
+    "screen",
+    "overlay",
+    "hard_light",
+    "soft_light",
+    "dodge",
+    "divide",
+    "addition",
+    "difference",
+    "darken_only",
+    "lighten_only",
+]
+
+
+class SynthTiger(templates.Template):
+    def __init__(self, config=None):
+        if config is None:
+            config = {}
+
+        self.coord_output = config.get("coord_output", True)
+        self.mask_output = config.get("mask_output", True)
+        self.glyph_coord_output = config.get("glyph_coord_output", True)
+        self.glyph_mask_output = config.get("glyph_mask_output", True)
+        self.vertical = config.get("vertical", False)
+        self.quality = config.get("quality", [95, 95])
+        self.visibility_check = config.get("visibility_check", False)
+        self.midground = config.get("midground", 0)
+        self.midground_offset = components.Translate(
+            **config.get("midground_offset", {})
+        )
+        self.foreground_mask_pad = config.get("foreground_mask_pad", 0)
+        self.corpus = components.Selector(
+            [
+                components.LengthAugmentableCorpus(),
+                components.CharAugmentableCorpus(),
+            ],
+            **config.get("corpus", {}),
+        )
+        self.font = components.BaseFont(**config.get("font", {}))
+        self.texture = components.Switch(
+            components.BaseTexture(), **config.get("texture", {})
+        )
+        self.colormap2 = components.GrayMap(**config.get("colormap2", {}))
+        self.colormap3 = components.GrayMap(**config.get("colormap3", {}))
+        self.color = components.Gray(**config.get("color", {}))
+        self.shape = components.Switch(
+            components.Selector(
+                [components.ElasticDistortion(), components.ElasticDistortion()]
+            ),
+            **config.get("shape", {}),
+        )
+        self.layout = components.Selector(
+            [components.FlowLayout(), components.CurveLayout()],
+            **config.get("layout", {}),
+        )
+        self.style = components.Switch(
+            components.Selector(
+                [
+                    components.TextBorder(),
+                    components.TextShadow(),
+                    components.TextExtrusion(),
+                ]
+            ),
+            **config.get("style", {}),
+        )
+        self.transform = components.Switch(
+            components.Selector(
+                [
+                    components.Perspective(),
+                    components.Perspective(),
+                    components.Trapezoidate(),
+                    components.Trapezoidate(),
+                    components.Skew(),
+                    components.Skew(),
+                    components.Rotate(),
+                ]
+            ),
+            **config.get("transform", {}),
+        )
+        self.fit = components.Fit()
+        self.pad = components.Switch(components.Pad(), **config.get("pad", {}))
+        self.postprocess = components.Iterator(
+            [
+                components.Switch(components.AdditiveGaussianNoise()),
+                components.Switch(components.GaussianBlur()),
+                components.Switch(components.Resample()),
+                components.Switch(components.MedianBlur()),
+            ],
+            **config.get("postprocess", {}),
+        )
+
+    def generate(self):
+        quality = np.random.randint(self.quality[0], self.quality[1] + 1)
+        midground = np.random.rand() < self.midground
+        fg_color, fg_style, mg_color, mg_style, bg_color = self._generate_color()
+
+        fg_image, label, bboxes, glyph_fg_image, glyph_bboxes = self._generate_text(
+            fg_color, fg_style
+        )
+        bg_image = self._generate_background(fg_image.shape[:2][::-1], bg_color)
+
+        if midground:
+            mg_image, _, _, _, _ = self._generate_text(mg_color, mg_style)
+            mg_image = self._erase_image(mg_image, fg_image)
+            bg_image = _blend_images(mg_image, bg_image, self.visibility_check)
+
+        image = _blend_images(fg_image, bg_image, self.visibility_check)
+        image, fg_image, glyph_fg_image = self._postprocess_images(
+            [image, fg_image, glyph_fg_image]
+        )
+
+        data = {
+            "image": image,
+            "label": label,
+            "quality": quality,
+            "mask": fg_image[..., 3],
+            "bboxes": bboxes,
+            "glyph_mask": glyph_fg_image[..., 3],
+            "glyph_bboxes": glyph_bboxes,
+        }
+
+        return data
+
+    def init_save(self, root):
+        os.makedirs(root, exist_ok=True)
+
+        gt_path = os.path.join(root, "gt.csv")
+        coords_path = os.path.join(root, "coords.csv")
+        glyph_coords_path = os.path.join(root, "glyph_coords.csv")
+
+        self.gt_file = open(gt_path, "w", encoding="utf-8")
+        if self.coord_output:
+            self.coords_file = open(coords_path, "w", encoding="utf-8")
+        if self.glyph_coord_output:
+            self.glyph_coords_file = open(glyph_coords_path, "w", encoding="utf-8")
+
+    def save(self, root, data, idx):
+        image = data["image"]
+        label = data["label"]
+        quality = data["quality"]
+        mask = data["mask"]
+        bboxes = data["bboxes"]
+        glyph_mask = data["glyph_mask"]
+        glyph_bboxes = data["glyph_bboxes"]
+
+        image = Image.fromarray(image[..., :3].astype(np.uint8))
+        #mask = Image.fromarray(mask.astype(np.uint8))
+        #glyph_mask = Image.fromarray(glyph_mask.astype(np.uint8))
+
+        coords = [[x, y, x + w, y + h] for x, y, w, h in bboxes]
+        coords = ",".join([",".join(map(str, map(int, coord))) for coord in coords])
+        glyph_coords = [[x, y, x + w, y + h] for x, y, w, h in glyph_bboxes]
+        glyph_coords = ",".join(
+            [",".join(map(str, map(int, coord))) for coord in glyph_coords]
+        )
+
+        shard = str(idx // 10000)
+        image_key = os.path.join("images", shard, f"{idx}.jpg")
+        mask_key = os.path.join("masks", shard, f"{idx}.png")
+        glyph_mask_key = os.path.join("glyph_masks", shard, f"{idx}.png")
+        image_path = os.path.join(root, image_key)
+        mask_path = os.path.join(root, mask_key)
+        glyph_mask_path = os.path.join(root, glyph_mask_key)
+
+        os.makedirs(os.path.dirname(image_path), exist_ok=True)
+        image.save(image_path, quality=quality)
+        # if self.mask_output:
+        #     os.makedirs(os.path.dirname(mask_path), exist_ok=True)
+        #     mask.save(mask_path)
+        # if self.glyph_mask_output:
+        #     os.makedirs(os.path.dirname(glyph_mask_path), exist_ok=True)
+        #     glyph_mask.save(glyph_mask_path)
+            
+        print(label)
+        keyVal = ASC2label[label]
+
+        self.gt_file.write(f"{image_key}, {keyVal}\n")
+
+        if self.coord_output:
+            self.coords_file.write(f"{image_key}\t{coords}\n")
+        if self.glyph_coord_output:
+            self.glyph_coords_file.write(f"{image_key}\t{glyph_coords}\n")
+
+    def end_save(self, root):
+        self.gt_file.close()
+        if self.coord_output:
+            self.coords_file.close()
+        if self.glyph_coord_output:
+            self.glyph_coords_file.close()
+
+    def _generate_color(self):
+        mg_color = self.color.sample()
+        fg_style = self.style.sample()
+        mg_style = self.style.sample()
+
+        if fg_style["state"]:
+            fg_color, bg_color, style_color = self.colormap3.sample()
+            fg_style["meta"]["meta"]["rgb"] = style_color["rgb"]
+        else:
+            fg_color, bg_color = self.colormap2.sample()
+
+        return fg_color, fg_style, mg_color, mg_style, bg_color
+
+    def _generate_text(self, color, style):
+        label = self.corpus.data(self.corpus.sample())
+
+        # for script using diacritic, ligature and RTL
+        chars = utils.split_text(label, reorder=True)
+
+        text = "".join(chars)
+        font = self.font.sample({"text": text, "vertical": self.vertical})
+
+        char_layers = [layers.TextLayer(char, **font) for char in chars]
+        self.shape.apply(char_layers)
+        self.layout.apply(char_layers, {"meta": {"vertical": self.vertical}})
+        char_glyph_layers = [char_layer.copy() for char_layer in char_layers]
+
+        text_layer = layers.Group(char_layers).merge()
+        text_glyph_layer = text_layer.copy()
+
+        transform = self.transform.sample()
+        self.color.apply([text_layer, text_glyph_layer], color)
+        self.texture.apply([text_layer, text_glyph_layer])
+        self.style.apply([text_layer, *char_layers], style)
+        self.transform.apply(
+            [text_layer, text_glyph_layer, *char_layers, *char_glyph_layers], transform
+        )
+        self.fit.apply([text_layer, text_glyph_layer, *char_layers, *char_glyph_layers])
+        self.pad.apply([text_layer])
+
+        for char_layer in char_layers:
+            char_layer.topleft -= text_layer.topleft
+        for char_glyph_layer in char_glyph_layers:
+            char_glyph_layer.topleft -= text_layer.topleft
+
+        out = text_layer.output()
+        bboxes = [char_layer.bbox for char_layer in char_layers]
+
+        glyph_out = text_glyph_layer.output(bbox=text_layer.bbox)
+        glyph_bboxes = [char_glyph_layer.bbox for char_glyph_layer in char_glyph_layers]
+
+        return out, label, bboxes, glyph_out, glyph_bboxes
+
+    def _generate_background(self, size, color):
+        layer = layers.RectLayer(size)
+        self.color.apply([layer], color)
+        self.texture.apply([layer])
+        out = layer.output()
+        return out
+
+    def _erase_image(self, image, mask):
+        mask = _create_poly_mask(mask, self.foreground_mask_pad)
+        mask_layer = layers.Layer(mask)
+        image_layer = layers.Layer(image)
+        image_layer.bbox = mask_layer.bbox
+        self.midground_offset.apply([image_layer])
+        out = image_layer.erase(mask_layer).output(bbox=mask_layer.bbox)
+        return out
+
+    def _postprocess_images(self, images):
+        image_layers = [layers.Layer(image) for image in images]
+        self.postprocess.apply(image_layers)
+        outs = [image_layer.output() for image_layer in image_layers]
+        return outs
+
+
+def _blend_images(src, dst, visibility_check=False):
+    blend_modes = np.random.permutation(BLEND_MODES)
+
+    for blend_mode in blend_modes:
+        out = utils.blend_image(src, dst, mode=blend_mode)
+        if not visibility_check or _check_visibility(out, src[..., 3]):
+            break
+    else:
+        raise RuntimeError("Text is not visible")
+
+    return out
+
+
+def _check_visibility(image, mask):
+    gray = utils.to_gray(image[..., :3]).astype(np.uint8)
+    mask = mask.astype(np.uint8)
+    height, width = mask.shape
+
+    peak = (mask > 127).astype(np.uint8)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+    bound = (mask > 0).astype(np.uint8)
+    bound = cv2.dilate(bound, kernel, iterations=1)
+
+    visit = bound.copy()
+    visit ^= 1
+    visit = np.pad(visit, 1, constant_values=1)
+
+    border = bound.copy()
+    border[mask > 0] = 0
+
+    flag = 4 | cv2.FLOODFILL_FIXED_RANGE | cv2.FLOODFILL_MASK_ONLY
+
+    for y in range(height):
+        for x in range(width):
+            if peak[y][x]:
+                cv2.floodFill(gray, visit, (x, y), 1, 16, 16, flag)
+
+    visit = visit[1:-1, 1:-1]
+    count = np.sum(visit & border)
+    total = np.sum(border)
+    return total > 0 and count <= total * 0.1
+
+
+def _create_poly_mask(image, pad=0):
+    height, width = image.shape[:2]
+    alpha = image[..., 3].astype(np.uint8)
+    mask = np.zeros((height, width), dtype=np.float32)
+
+    cts, _ = cv2.findContours(alpha, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cts = sorted(cts, key=lambda ct: sum(cv2.boundingRect(ct)[:2]))
+
+    if len(cts) == 1:
+        hull = cv2.convexHull(cts[0])
+        cv2.fillConvexPoly(mask, hull, 255)
+
+    for idx in range(len(cts) - 1):
+        pts = np.concatenate((cts[idx], cts[idx + 1]), axis=0)
+        hull = cv2.convexHull(pts)
+        cv2.fillConvexPoly(mask, hull, 255)
+
+    mask = utils.dilate_image(mask, pad)
+    out = utils.create_image((width, height))
+    out[..., 3] = mask
+    return out

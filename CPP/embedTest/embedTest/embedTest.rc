@@ -1,0 +1,11 @@
+#include "resource.h"
+
+DEMO_TEXT TEXTFILE "D:\\project\\testProject\\embedTest\\test.txt"
+
+DETECTION DETECTION_FILE "D:\\project\\testProject\\embedTest\\embedTest\\model\\PermutedCRAFT.onnx"
+
+HAN_RECOG HAN_RECOG_FILE "D:\\project\\testProject\\embedTest\\embedTest\\model\\model_8_2.onnx"
+
+ASC_RECOG ASC_RECOG_FILE "D:\\project\\testProject\\embedTest\\embedTest\\model\\ASC3.onnx"
+
+//ASC_RECOG ASC_RECOG_FILE ""
